@@ -3,17 +3,35 @@
 <style>
   #filters {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
+    gap: 1rem;
+    width: 100%;
+    margin-top: 1rem;
+  }
+
+  .category-filters {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .category-filters::-webkit-scrollbar {
+    display: none;
   }
 
   .filter {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
     text-align: center;
-    margin-right: 2rem;
-    margin-top: 2rem;
     opacity: 0.7;
     text-decoration: none;
     color: #222222;
+    padding: 0.75rem 0 0.5rem;
+    border-bottom: 2px solid transparent;
   }
 
   .filter:hover {
@@ -23,10 +41,13 @@
 
   .filter p {
     font-size: 0.8rem;
+    margin: 0.35rem 0 0;
+    white-space: nowrap;
   }
 
   .filter.active {
     opacity: 1;
+    border-bottom-color: #222222;
   }
 
   .tax-info {
@@ -34,40 +55,70 @@
   }
 
   .tax-toggle {
-    border: 1px solid black;
-    border-radius: 1rem;
-    height: 3.25rem;
-    padding: 1rem;
-    margin-left: 2rem;
+    flex: 0 0 auto;
+    border: 1px solid #ddd;
+    border-radius: 1.5rem;
+    min-height: 3.25rem;
+    padding: 0.75rem 1rem;
     display: flex;
     align-items: center;
+    background: #fff;
+    white-space: nowrap;
+  }
+
+  .tax-toggle .form-check {
+    margin: 0;
   }
 
   @media (max-width: 768px) {
+    #filters {
+      align-items: flex-start;
+    }
+
+    .category-filters {
+      gap: 1rem;
+    }
+
     .filter {
-      margin-right: 1rem;
+      min-width: 4rem;
     }
 
     .tax-toggle {
-      margin-left: 0;
-      margin-top: 1rem;
+      padding: 0.65rem 0.8rem;
+    }
+
+    .tax-toggle .form-check-label {
+      display: none;
+    }
+  }
+
+  @media (max-width: 576px) {
+    #filters {
+      gap: 0.5rem;
+    }
+
+    .tax-toggle {
+      min-height: 2.75rem;
+      margin-top: 0.45rem;
     }
   }
 </style>
 
 <div id="filters">
-  <% categories.forEach((category) => { %>
-  <a
-    class="filter <%= filters.category === category.key ? 'active' : '' %>"
-    href="/listings?category=<%= category.key %>"
-  >
-    <div><i class="fa-solid <%= category.icon %>"></i></div>
-    <p><%= category.label %></p>
-  </a>
-  <% }) %>
+  <div class="category-filters">
+    <% categories.forEach((category) => { %>
+    <a
+      class="filter <%= filters.category === category.key ? 'active' : '' %>"
+      href="/listings?category=<%= category.key %>"
+    >
+      <div><i class="fa-solid <%= category.icon %>"></i></div>
+      <p><%= category.label %></p>
+    </a>
+    <% }) %>
+  </div>
 
   <div class="tax-toggle">
-    <div class="form-check-reverse form-switch">
+    <div class="form-check form-check-reverse form-switch">
       <input
         class="form-check-input"
         type="checkbox"

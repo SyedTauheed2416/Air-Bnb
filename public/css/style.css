@@ -124,5 +124,13 @@ body {
 
 #map {
   height: 400px;
-  width: 80vh;
+  width: 100%;
+  max-width: 900px;
+  border-radius: 1rem;
+}
+
+@media (max-width: 768px) {
+  #map {
+    height: 350px;
+  }
 }

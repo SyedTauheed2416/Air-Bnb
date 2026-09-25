@@ -2,21 +2,26 @@ const Listing = require("../models/listing");
 const axios = require("axios");
 const { categories, categoryKeywords } = require("../utils/categories");
 
-async function geocodeWithRetry(query, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await axios.get("https://nominatim.openstreetmap.org/search", {
-        params: { q: query, format: "json", limit: 1 },
-        headers: { "User-Agent": "Wanderlust/1.0 (your-email@example.com)" },
-        timeout: 5000,
-      });
-    } catch (err) {
-      if (err.response?.status === 429 && i < retries) {
-        await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
-        continue;
-      }
-      throw err;
+async function geocodeLocation(query) {
+  try {
+    return await axios.get("https://photon.komoot.io/api/", {
+      params: {
+        q: query,
+        limit: 1,
+        lang: "en",
+      },
+      timeout: 7000,
+      headers: {
+        "User-Agent": "Wanderlust/1.0",
+      },
+    });
+  } catch (err) {
+    if (err.response?.status === 429) {
+      const error = new Error("Location service is temporarily busy.");
+      error.code = "GEOCODING_LIMIT";
+      throw error;
     }
+    throw err;
   }
 }
 
@@ -81,51 +86,38 @@ module.exports.showListing = async (req, res) => {
 
 module.exports.createListing = async (req, res, next) => {
   try {
-    let response;
-    try {
-      response = await axios.get("https://nominatim.openstreetmap.org/search", {
-        params: {
-          q: req.body.listing.location,
-          format: "json",
-          limit: 1,
-        },
-        headers: {
-          "User-Agent": "Wanderlust/1.0 (tauheedsyed9092@gmail.com)",
-        },
-        timeout: 5000,
-      });
-    } catch (geoErr) {
-      if (geoErr.response && geoErr.response.status === 429) {
-        req.flash(
-          "error",
-          "Location lookup is temporarily busy. Please wait a few seconds and try again.",
-        );
-        return res.redirect("/listings/new");
-      }
-      throw geoErr; // some other error, let it bubble to your error handler
-    }
+    const response = await geocodeLocation(req.body.listing.location);
+    const feature = response.data.features?.[0];
 
-    if (response.data.length === 0) {
-      req.flash("error", "Location not found!");
+    if (!feature) {
+      req.flash("error", "Location not found! Try adding the city or country.");
       return res.redirect("/listings/new");
     }
 
-    const { lat, lon } = response.data[0];
-    let url = req.file.path;
-    let filename = req.file.filename;
+    const [lon, lat] = feature.geometry.coordinates;
 
     const newListing = new Listing(req.body.listing);
     newListing.owner = req.user._id;
-    newListing.image = { url, filename };
+    newListing.image = {
+      url: req.file.path,
+      filename: req.file.filename,
+    };
     newListing.geometry = {
       type: "Point",
-      coordinates: [parseFloat(lon), parseFloat(lat)],
+      coordinates: [Number(lon), Number(lat)],
     };
 
     await newListing.save();
     req.flash("success", "New Listing Created!");
     res.redirect("/listings");
   } catch (err) {
+    if (err.code === "GEOCODING_LIMIT") {
+      req.flash(
+        "error",
+        "Location service is temporarily busy. Please try again in a few seconds.",
+      );
+      return res.redirect("/listings/new");
+    }
     next(err);
   }
 };
@@ -157,30 +149,30 @@ module.exports.updateListing = async (req, res, next) => {
     Object.assign(listing, req.body.listing);
 
     if (locationChanged) {
-      let response;
       try {
-        response = await geocodeWithRetry(req.body.listing.location);
+        const response = await geocodeLocation(req.body.listing.location);
+        const feature = response.data.features?.[0];
+
+        if (!feature) {
+          req.flash("error", "Location not found!");
+          return res.redirect(`/listings/${id}/edit`);
+        }
+
+        const [lon, lat] = feature.geometry.coordinates;
+        listing.geometry = {
+          type: "Point",
+          coordinates: [Number(lon), Number(lat)],
+        };
       } catch (geoErr) {
-        if (geoErr.response && geoErr.response.status === 429) {
+        if (geoErr.code === "GEOCODING_LIMIT") {
           req.flash(
             "error",
-            "Location lookup is temporarily busy. Please wait a few seconds and try again.",
+            "Location service is temporarily busy. Please try again in a few seconds.",
           );
           return res.redirect(`/listings/${id}/edit`);
         }
         throw geoErr;
       }
-
-      if (response.data.length === 0) {
-        req.flash("error", "Location not found!");
-        return res.redirect(`/listings/${id}/edit`);
-      }
-
-      const { lat, lon } = response.data[0];
-      listing.geometry = {
-        type: "Point",
-        coordinates: [parseFloat(lon), parseFloat(lat)],
-      };
     }
 
     if (typeof req.file !== "undefined") {

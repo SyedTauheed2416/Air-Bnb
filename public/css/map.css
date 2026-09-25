@@ -6,7 +6,7 @@
 .marker-dot {
   width: 20px;
   height: 20px;
-  background: red;
+  background: #fe424d;
   border: 3px solid white;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);

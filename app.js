@@ -65,9 +65,9 @@ const sessionOptions = {
   },
 };
 
-// app.get("/", (req, res) => {
-//   res.redirect("/listings");
-// });
+app.get("/", (req, res) => {
+  res.redirect("/listings");
+});
 
 app.get("/privacy", (req, res) => {
   res.render("privacy.ejs");
