@@ -2,6 +2,24 @@ const Listing = require("../models/listing");
 const axios = require("axios");
 const { categories, categoryKeywords } = require("../utils/categories");
 
+async function geocodeWithRetry(query, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await axios.get("https://nominatim.openstreetmap.org/search", {
+        params: { q: query, format: "json", limit: 1 },
+        headers: { "User-Agent": "Wanderlust/1.0 (your-email@example.com)" },
+        timeout: 5000,
+      });
+    } catch (err) {
+      if (err.response?.status === 429 && i < retries) {
+        await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 module.exports.index = async (req, res) => {
   let { q = "", category = "", minPrice = "", maxPrice = "" } = req.query;
   let filter = {};
@@ -63,19 +81,29 @@ module.exports.showListing = async (req, res) => {
 
 module.exports.createListing = async (req, res, next) => {
   try {
-    const response = await axios.get(
-      "https://nominatim.openstreetmap.org/search",
-      {
+    let response;
+    try {
+      response = await axios.get("https://nominatim.openstreetmap.org/search", {
         params: {
           q: req.body.listing.location,
           format: "json",
           limit: 1,
         },
         headers: {
-          "User-Agent": "Wanderlust/1.0",
+          "User-Agent": "Wanderlust/1.0 (tauheedsyed9092@gmail.com)",
         },
-      },
-    );
+        timeout: 5000,
+      });
+    } catch (geoErr) {
+      if (geoErr.response && geoErr.response.status === 429) {
+        req.flash(
+          "error",
+          "Location lookup is temporarily busy. Please wait a few seconds and try again.",
+        );
+        return res.redirect("/listings/new");
+      }
+      throw geoErr; // some other error, let it bubble to your error handler
+    }
 
     if (response.data.length === 0) {
       req.flash("error", "Location not found!");
@@ -129,19 +157,19 @@ module.exports.updateListing = async (req, res, next) => {
     Object.assign(listing, req.body.listing);
 
     if (locationChanged) {
-      const response = await axios.get(
-        "https://nominatim.openstreetmap.org/search",
-        {
-          params: {
-            q: req.body.listing.location,
-            format: "json",
-            limit: 1,
-          },
-          headers: {
-            "User-Agent": "Wanderlust/1.0",
-          },
-        },
-      );
+      let response;
+      try {
+        response = await geocodeWithRetry(req.body.listing.location);
+      } catch (geoErr) {
+        if (geoErr.response && geoErr.response.status === 429) {
+          req.flash(
+            "error",
+            "Location lookup is temporarily busy. Please wait a few seconds and try again.",
+          );
+          return res.redirect(`/listings/${id}/edit`);
+        }
+        throw geoErr;
+      }
 
       if (response.data.length === 0) {
         req.flash("error", "Location not found!");
